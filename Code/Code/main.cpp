@@ -2,7 +2,7 @@
 
 int main(int, char **)
 {
-    auto net = cv::dnn::readNet("yolov5s.onnx");
+    Net net = cv::dnn::readNet("yolov3_training_last.weights", "yolov3_testing.cfg");
     
     return 0;
 }
