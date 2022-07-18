@@ -1,3 +1,12 @@
-main	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^int main(int argc, char** argv)$/;"	function	line:6	signature:(int argc, char** argv)	returns:int 
-postprocess	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^void postprocess(Mat& frame, const vector<Mat>& outs){$/;"	function	line:43	signature:(Mat& frame, const vector<Mat>& outs)	returns:void 
-getOutputsNames	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^vector<String> getOutputsNames(const Net& net){$/;"	function	line:114	signature:(const Net& net)	returns:vector <String> 
+confThreshold	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^float confThreshold = 0.5; \/\/ Confidence threshold$/;"	variable	line:9
+nmsThreshold	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^float nmsThreshold = 0.4;  \/\/ Non-maximum suppression threshold$/;"	variable	line:10
+inpWidth	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^int inpWidth = 416;        \/\/ Width of network's input image$/;"	variable	line:11
+inpHeight	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^int inpHeight = 416;       \/\/ Height of network's input image$/;"	variable	line:12
+classes	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^String classes = {"Hands"};$/;"	variable	line:15
+getOutputsNames	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^vector<String> getOutputsNames(const Net& net);$/;"	prototype	line:17	signature:(const Net& net)	returns:vector <String> 
+postprocess	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^void postprocess(Mat& frame, const vector<Mat>& outs);$/;"	prototype	line:18	signature:(Mat& frame, const vector<Mat>& outs)	returns:void 
+drawPred	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^void drawPred(int classId, float conf, int left, int top, int right, int bottom, Mat& frame);$/;"	prototype	line:19	signature:(int classId, float conf, int left, int top, int right, int bottom, Mat& frame)	returns:void 
+main	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^int main(int argc, char** argv)$/;"	function	line:21	signature:(int argc, char** argv)	returns:int 
+postprocess	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^void postprocess(Mat& frame, const vector<Mat>& outs)$/;"	function	line:77	signature:(Mat& frame, const vector<Mat>& outs)	returns:void 
+drawPred	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^void drawPred(int classId, float conf, int left, int top, int right, int bottom, Mat& frame)$/;"	function	line:184	signature:(int classId, float conf, int left, int top, int right, int bottom, Mat& frame)	returns:void 
+getOutputsNames	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^vector<String> getOutputsNames(const Net& net){$/;"	function	line:206	signature:(const Net& net)	returns:vector <String> 

@@ -2,39 +2,47 @@
 #include <opencv2/dnn/dnn.hpp>
 
 using namespace cv;
+using namespace std;
+using namespace cv::dnn;
+
+// Initialize the parameters
+float confThreshold = 0.5; // Confidence threshold
+float nmsThreshold = 0.4;  // Non-maximum suppression threshold
+int inpWidth = 416;        // Width of network's input image
+int inpHeight = 416;       // Height of network's input image
+
+// Classes names
+String classes = {"Hands"};
+
+vector<String> getOutputsNames(const Net& net);
+void postprocess(Mat& frame, const vector<Mat>& outs);
+void drawPred(int classId, float conf, int left, int top, int right, int bottom, Mat& frame);
 
 int main(int argc, char** argv)
 {
-    //Load Yolo Model
+  
+    // Load Yolo Model
     cv::dnn::Net net = cv::dnn::readNet("../../../Model/yolov3_training_last.weights", "../../../Model/yolov3_testing.cfg");
-    
-    String classes = ["Hands"];
-    
-    // Initialize the parameters
-    float confThreshold = 0.5; // Confidence threshold
-    float nmsThreshold = 0.4;  // Non-maximum suppression threshold
-    int inpWidth = 416;        // Width of network's input image
-    int inpHeight = 416;       // Height of network's input image
     
     // gather images in a specified path
     vector<String> images_path;
-    glob("Dataset progetto CV - Hand detection _ segmentation/rgb/*.jpg", images_path, false);  
+    glob("../../Dataset progetto CV - Hand detection _ segmentation/rgb/*.jpg", images_path, false);  
     
-    vector<String> output_layers = getOutputNames(net);
+    vector<String> output_layers = getOutputsNames(net);
     
-    randShuffle(images_path);
+    //randShuffle(images_path);
     
     
     // process images for Yolo neural network
     Mat img, blob;
     
-    for (int i = 0; i < images_path.size; i++){
-      img = imread(images_path(i));
+    for (int i = 0; i < images_path.size(); i++){
+      img = imread(images_path[i]);
       
       int img_width = img.cols;
       int img_height = img.rows;
       
-      blobFromImage(img, blob, 1/255, cv::Size(img_width, img_height), Scalar(0,0,0), true, false);
+      blobFromImage(img, blob, 1/255, cv::Size(inpWidth, inpHeight), Scalar(0,0,0), true, false);
       
       net.setInput(blob);
       
@@ -44,68 +52,155 @@ int main(int argc, char** argv)
       //
       postprocess(img, outs);
       
+      /*// Put efficiency information. The function getPerfProfile returns the overall time for inference(t) and the timings for each of the layers(in layersTimes)
+      vector<double> layersTimes;
+      double freq = getTickFrequency() / 1000;
+      double t = net.getPerfProfile(layersTimes) / freq;
+      string label = format("Inference time for a frame : %.2f ms", t);
+      putText(frame, label, Point(0, 15), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 255));*/
+          
+      // Write the frame with the detection boxes
+      Mat detectedImg;
+      img.convertTo(detectedImg, CV_8U);
+      //imwrite(i+"_image_result.jpg", detectedImg);          
+      imshow("Detection Result", img);        
+      
+      waitKey(0);
+      
     }
     
     return 0;
 }
 
 
-void postprocess(Mat& frame, const vector<Mat>& outs){
-
+// Remove the bounding boxes with low confidence using non-maxima suppression
+void postprocess(Mat& frame, const vector<Mat>& outs)
+{
     vector<int> classIds;
     vector<float> confidences;
-    vector<Rect> boxes;    
-
-    for (size_t i = 0; i < outs.size(); ++i){
-
-    // Scan through all the bounding boxes output from the network and keep only the
-    // ones with high confidence scores. Assign the box's class label as the class
-    // with the highest score for the box.
-
-    float* data = (float*)outs[i].data;
-
-    for (int j = 0; j < outs[i].rows; ++j, data += outs[i].cols){
+    vector<Rect> boxes;
+    
+    for (size_t i = 0; i < outs.size(); ++i)
+    {
+        // Scan through all the bounding boxes output from the network and keep only the
+        // ones with high confidence scores. Assign the box's class label as the class
+        // with the highest score for the box.
+        float* data = (float*)outs[i].data;
+        for (int j = 0; j < outs[i].rows; ++j, data += outs[i].cols)
+        {
+            Mat scores = outs[i].row(j).colRange(5, outs[i].cols);
+            Point classIdPoint;
+            double confidence;
+            
+            
+            // Get the value and location of the maximum score
+            minMaxLoc(scores, 0, &confidence, 0, &classIdPoint);
+                int centerX = (int)(data[0] * frame.cols);
+                int centerY = (int)(data[1] * frame.rows);
+                int width = (int)(data[2] * frame.cols);
+                int height = (int)(data[3] * frame.rows);
+                int left = centerX - width / 2;
+                int top = centerY - height / 2;
+                
+                //cout<<left<<", "<<top<<", "<<width<<", "<<height<<endl;
+                
+                classIds.push_back(classIdPoint.x);
+                confidences.push_back((float)1);
+                boxes.push_back(Rect(left, top, width, height));
+            
+        }
+    }
+    
+    // Perform non maximum suppression to eliminate redundant overlapping boxes with
+    // lower confidences
+    vector<int> indices;
+    NMSBoxes(boxes, confidences, confThreshold, nmsThreshold, indices);
+    for (size_t i = 0; i < indices.size(); ++i)
+    {
+        int idx = indices[i];
         
-        Mat scores = outs[i].row(j).colRange(5, outs[i].cols);
-        Point classIdPoint;
-        double confidence;
+        Rect box = boxes[idx];
+        drawPred(classIds[idx], confidences[idx], box.x, box.y,
+                 box.x + box.width, box.y + box.height, frame);
+    }
+}
 
-        // Get the value and location of the maximum score
-
-        minMaxLoc(scores, 0, &confidence, 0, &classIdPoint);
-
-        if (confidence > confThreshold){
-
-            int centerX = (int)(data[0] * frame.cols);
-            int centerY = (int)(data[1] * frame.rows);
-            int width = (int)(data[2] * frame.cols);
-            int height = (int)(data[3] * frame.rows);
-            int left = centerX - width / 2;
-            int top = centerY - height / 2;
-
-            classIds.push_back(classIdPoint.x);
-
-            confidences.push_back((float)confidence);
-
-            boxes.push_back(Rect(left, top, width, height));
-
+void postprocess2(Mat& frame, const vector<Mat>& outs)
+{
+    vector<int> classIds;
+    vector<float> confidences;
+    vector<Rect> boxes;
+    
+    for (size_t i = 0; i < outs.size(); ++i)
+    {
+        // Scan through all the bounding boxes output from the network and keep only the
+        // ones with high confidence scores. Assign the box's class label as the class
+        // with the highest score for the box.
+        float* data = (float*)outs[i].data;
+        for (int j = 0; j < outs[i].rows; ++j, data += outs[i].cols)
+        {
+            Mat scores = outs[i].row(j).colRange(5, outs[i].cols);
+            cout<<scores<<endl;
+            Point classIdPoint;
+            double confidence;
+            
+            
+            // Get the value and location of the maximum score
+            minMaxLoc(scores, 0, &confidence, 0, &classIdPoint);
+            
+            if (confidence > confThreshold)
+            {
+                int centerX = (int)(data[0] * frame.cols);
+                int centerY = (int)(data[1] * frame.rows);
+                int width = (int)(data[2] * frame.cols);
+                int height = (int)(data[3] * frame.rows);
+                int left = centerX - width / 2;
+                int top = centerY - height / 2;
+                
+                //cout<<left<<", "<<top<<", "<<width<<", "<<height<<endl;
+                
+                classIds.push_back(classIdPoint.x);
+                confidences.push_back((float)confidence);
+                boxes.push_back(Rect(left, top, width, height));
             }
         }
     }
     
-    // Perform non maximum suppression to eliminate redundant overlapping boxes with lower confidences
+    // Perform non maximum suppression to eliminate redundant overlapping boxes with
+    // lower confidences
     vector<int> indices;
-    
     NMSBoxes(boxes, confidences, confThreshold, nmsThreshold, indices);
-    
     for (size_t i = 0; i < indices.size(); ++i)
     {
         int idx = indices[i];
+        
         Rect box = boxes[idx];
-        drawPred(classIds[idx], confidences[idx], box.x, box.y, box.x + box.width, box.y + box.height, frame);
+        drawPred(classIds[idx], confidences[idx], box.x, box.y,
+                 box.x + box.width, box.y + box.height, frame);
     }
 }
 
+// Draw the predicted bounding box
+void drawPred(int classId, float conf, int left, int top, int right, int bottom, Mat& frame)
+{
+    //Draw a rectangle displaying the bounding box
+    rectangle(frame, Point(left, top), Point(right, bottom), Scalar(255, 178, 50), 3);
+    
+    //Get the label for the class name and its confidence
+    string label = format("%.2f", conf);
+    if (!classes.empty())
+    {
+        CV_Assert(classId < (int)classes.size());
+        label = classes[classId] + ":" + label;
+    }
+    
+    //Display the label at the top of the bounding box
+    int baseLine;
+    Size labelSize = getTextSize(label, FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+    top = max(top, labelSize.height);
+    rectangle(frame, Point(left, top - round(1.5*labelSize.height)), Point(left + round(1.5*labelSize.width), top + baseLine), Scalar(255, 255, 255), FILLED);
+    putText(frame, label, Point(left, top), FONT_HERSHEY_SIMPLEX, 0.75, Scalar(0,0,0),1);
+}
 
 // Get the names of the output layers
 vector<String> getOutputsNames(const Net& net){
