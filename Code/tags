@@ -1,1 +1,3 @@
-main	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^int main(int argc, char **argv)$/;"	function	line:3	signature:(int argc, char **argv)	returns:int 
+main	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^int main(int argc, char** argv)$/;"	function	line:6	signature:(int argc, char** argv)	returns:int 
+postprocess	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^void postprocess(Mat& frame, const vector<Mat>& outs){$/;"	function	line:43	signature:(Mat& frame, const vector<Mat>& outs)	returns:void 
+getOutputsNames	/home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp	/^vector<String> getOutputsNames(const Net& net){$/;"	function	line:114	signature:(const Net& net)	returns:vector <String> 
