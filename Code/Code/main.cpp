@@ -1,205 +1,140 @@
+/*import numpy as np
+
+net = cv2.dnn.readNet('yolov3_training_last.weights', 'yolov3_testing.cfg')
+
+classes = []
+with open("classes.txt", "r") as f:
+    classes = f.read().splitlines()
+
+#cap = cv2.VideoCapture('video4.mp4')
+#cap = 'test_images/<your_test_image>.jpg'
+font = cv2.FONT_HERSHEY_PLAIN
+colors = np.random.uniform(0, 255, size=(100, 3))
+
+while True:
+    #_, img = cap.read()
+    #img = cv2.imread("test_images/<your_test_image>.jpg")
+    img = cv2.imread("30.jpg")
+    height, width, _ = img.shape
+
+    blob = cv2.dnn.blobFromImage(img, 1/255, (416, 416), (0,0,0), swapRB=True, crop=False)
+    net.setInput(blob)
+    output_layers_names = net.getUnconnectedOutLayersNames()
+    layerOutputs = net.forward(output_layers_names)
+
+    boxes = []
+    confidences = []
+    class_ids = []
+
+    for output in layerOutputs:
+        for detection in output:
+            scores = detection[5:]
+            class_id = np.argmax(scores)
+            confidence = scores[class_id]
+            if confidence > 0.2:
+                center_x = int(detection[0]*width)
+                center_y = int(detection[1]*height)
+                w = int(detection[2]*width)
+                h = int(detection[3]*height)
+
+                x = int(center_x - w/2)
+                y = int(center_y - h/2)
+
+                boxes.append([x, y, w, h])
+                confidences.append((float(confidence)))
+                class_ids.append(class_id)
+
+    indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.2, 0.4)
+
+    if len(indexes)>0:
+        for i in indexes.flatten():
+            x, y, w, h = boxes[i]
+            label = str(classes[class_ids[i]])
+            confidence = str(round(confidences[i],2))
+            color = colors[i]
+            cv2.rectangle(img, (x,y), (x+w, y+h), color, 2)
+            cv2.putText(img, label + " " + confidence, (x, y+20), font, 1, (255,255,255), 2)
+
+    #cv2.imshow('Image', img)
+    cv2.imwrite("Image.jpg", img)
+    break
+#cap.release()
+cv2.destroyAllWindows()*/
+
+
 #include <opencv2/opencv.hpp>
 #include <opencv2/dnn/dnn.hpp>
+#include <typeinfo>
 
 using namespace cv;
 using namespace std;
 using namespace cv::dnn;
 
-// Initialize the parameters
-float confThreshold = 0.5; // Confidence threshold
-float nmsThreshold = 0.4;  // Non-maximum suppression threshold
-int inpWidth = 416;        // Width of network's input image
-int inpHeight = 416;       // Height of network's input image
-
-// Classes names
-String classes = {"Hands"};
-
 vector<String> getOutputsNames(const Net& net);
-void postprocess(Mat& frame, const vector<Mat>& outs);
-void drawPred(int classId, float conf, int left, int top, int right, int bottom, Mat& frame);
 
 int main(int argc, char** argv)
 {
-  
-    // Load Yolo Model
-    cv::dnn::Net net = cv::dnn::readNet("../../../Model/yolov3_training_last.weights", "../../../Model/yolov3_testing.cfg");
+    //Load Yolo Model
+    //cv::dnn::Net net = cv::dnn::readNet("yolov3_training_last.weights", "yolov3_testing.cfg", "Darknet");
+    //auto net = cv::dnn::readNet("yolov3_training_last.weights", "yolov3_testing.cfg", "Darknet");
+    cv::dnn::Net net = cv::dnn::readNetFromDarknet("yolov3.cfg", "yolov3.weights");
     
-    // gather images in a specified path
-    vector<String> images_path;
-    glob("../../Dataset progetto CV - Hand detection _ segmentation/rgb/*.jpg", images_path, false);  
+    net.setPreferableBackend(DNN_BACKEND_OPENCV);
+    net.setPreferableTarget(DNN_TARGET_CPU);
     
-    vector<String> output_layers = getOutputsNames(net);
+    String classes = {"Hands"};
     
-    //randShuffle(images_path);
+    Mat img = imread("../../Dataset progetto CV - Hand detection _ segmentation/rgb/01.jpg");
+    
+    //Mat blob = blobFromImage(img, 1/255, cv::Size(416,416), Scalar(0,0,0), true, false);
+    Mat blob = blobFromImage(img, 0.01, Size(224, 224), Scalar(104, 117, 123));
+    //blobFromImage(img, blob, 1/255, cv::Size(416,416), Scalar(0,0,0), true, false);
     
     
-    // process images for Yolo neural network
-    Mat img, blob;
+    net.setInput(blob);
     
-    for (int i = 0; i < images_path.size(); i++){
-      img = imread(images_path[i]);
+    vector<String> output_layers_names = getOutputsNames(net);
+    
+    vector<Mat> outs;
+    
+    net.forward(outs, output_layers_names);
+    
+    vector<Rect> boxes;
+    vector<float> confidences;
+    vector<int> classIds;
+    
+    Mat temp;
+    
+    
+    for (size_t i = 0; i < outs.size(); ++i){
       
-      int img_width = img.cols;
-      int img_height = img.rows;
-      
-      blobFromImage(img, blob, 1/255, cv::Size(inpWidth, inpHeight), Scalar(0,0,0), true, false);
-      
-      net.setInput(blob);
-      
-      vector<Mat> outs;
-      net.forward(outs, output_layers);
-      
-      //
-      postprocess(img, outs);
-      
-      /*// Put efficiency information. The function getPerfProfile returns the overall time for inference(t) and the timings for each of the layers(in layersTimes)
-      vector<double> layersTimes;
-      double freq = getTickFrequency() / 1000;
-      double t = net.getPerfProfile(layersTimes) / freq;
-      string label = format("Inference time for a frame : %.2f ms", t);
-      putText(frame, label, Point(0, 15), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 255));*/
-          
-      // Write the frame with the detection boxes
-      Mat detectedImg;
-      img.convertTo(detectedImg, CV_8U);
-      //imwrite(i+"_image_result.jpg", detectedImg);          
-      imshow("Detection Result", img);        
-      
-      waitKey(0);
-      
+      float* data = (float*)outs[i].data;
+      for (int j = 0; j<outs[i].rows; ++j){
+        //cout<<typeid(data).name()<<endl;
+        
+        Mat detection = outs[i].row(j);
+        //cout<<detection<<"**"<<endl;
+        
+        Mat scores = detection.col(5);
+        Point classId;
+        double confidence;
+        
+        minMaxLoc(scores, NULL, &confidence, NULL, &classId);
+        if (confidence > 0){
+          cout<<confidence<<endl;
+        }
+        
+        //cout<<detection.col(5)<<endl;
+        temp.push_back(detection.col(5));
+        
+        /*if (detection.col(5)Mat::zeros(1,1,CV_64F)) {
+          cout<<detection.col(5)<<endl;
+        }*/
+      }
     }
+    cout<<sum(temp)<<endl;
     
     return 0;
-}
-
-
-// Remove the bounding boxes with low confidence using non-maxima suppression
-void postprocess(Mat& frame, const vector<Mat>& outs)
-{
-    vector<int> classIds;
-    vector<float> confidences;
-    vector<Rect> boxes;
-    
-    for (size_t i = 0; i < outs.size(); ++i)
-    {
-        // Scan through all the bounding boxes output from the network and keep only the
-        // ones with high confidence scores. Assign the box's class label as the class
-        // with the highest score for the box.
-        float* data = (float*)outs[i].data;
-        for (int j = 0; j < outs[i].rows; ++j, data += outs[i].cols)
-        {
-            Mat scores = outs[i].row(j).colRange(5, outs[i].cols);
-            Point classIdPoint;
-            double confidence;
-            
-            
-            // Get the value and location of the maximum score
-            minMaxLoc(scores, 0, &confidence, 0, &classIdPoint);
-                int centerX = (int)(data[0] * frame.cols);
-                int centerY = (int)(data[1] * frame.rows);
-                int width = (int)(data[2] * frame.cols);
-                int height = (int)(data[3] * frame.rows);
-                int left = centerX - width / 2;
-                int top = centerY - height / 2;
-                
-                //cout<<left<<", "<<top<<", "<<width<<", "<<height<<endl;
-                
-                classIds.push_back(classIdPoint.x);
-                confidences.push_back((float)1);
-                boxes.push_back(Rect(left, top, width, height));
-            
-        }
-    }
-    
-    // Perform non maximum suppression to eliminate redundant overlapping boxes with
-    // lower confidences
-    vector<int> indices;
-    NMSBoxes(boxes, confidences, confThreshold, nmsThreshold, indices);
-    for (size_t i = 0; i < indices.size(); ++i)
-    {
-        int idx = indices[i];
-        
-        Rect box = boxes[idx];
-        drawPred(classIds[idx], confidences[idx], box.x, box.y,
-                 box.x + box.width, box.y + box.height, frame);
-    }
-}
-
-void postprocess2(Mat& frame, const vector<Mat>& outs)
-{
-    vector<int> classIds;
-    vector<float> confidences;
-    vector<Rect> boxes;
-    
-    for (size_t i = 0; i < outs.size(); ++i)
-    {
-        // Scan through all the bounding boxes output from the network and keep only the
-        // ones with high confidence scores. Assign the box's class label as the class
-        // with the highest score for the box.
-        float* data = (float*)outs[i].data;
-        for (int j = 0; j < outs[i].rows; ++j, data += outs[i].cols)
-        {
-            Mat scores = outs[i].row(j).colRange(5, outs[i].cols);
-            cout<<scores<<endl;
-            Point classIdPoint;
-            double confidence;
-            
-            
-            // Get the value and location of the maximum score
-            minMaxLoc(scores, 0, &confidence, 0, &classIdPoint);
-            
-            if (confidence > confThreshold)
-            {
-                int centerX = (int)(data[0] * frame.cols);
-                int centerY = (int)(data[1] * frame.rows);
-                int width = (int)(data[2] * frame.cols);
-                int height = (int)(data[3] * frame.rows);
-                int left = centerX - width / 2;
-                int top = centerY - height / 2;
-                
-                //cout<<left<<", "<<top<<", "<<width<<", "<<height<<endl;
-                
-                classIds.push_back(classIdPoint.x);
-                confidences.push_back((float)confidence);
-                boxes.push_back(Rect(left, top, width, height));
-            }
-        }
-    }
-    
-    // Perform non maximum suppression to eliminate redundant overlapping boxes with
-    // lower confidences
-    vector<int> indices;
-    NMSBoxes(boxes, confidences, confThreshold, nmsThreshold, indices);
-    for (size_t i = 0; i < indices.size(); ++i)
-    {
-        int idx = indices[i];
-        
-        Rect box = boxes[idx];
-        drawPred(classIds[idx], confidences[idx], box.x, box.y,
-                 box.x + box.width, box.y + box.height, frame);
-    }
-}
-
-// Draw the predicted bounding box
-void drawPred(int classId, float conf, int left, int top, int right, int bottom, Mat& frame)
-{
-    //Draw a rectangle displaying the bounding box
-    rectangle(frame, Point(left, top), Point(right, bottom), Scalar(255, 178, 50), 3);
-    
-    //Get the label for the class name and its confidence
-    string label = format("%.2f", conf);
-    if (!classes.empty())
-    {
-        CV_Assert(classId < (int)classes.size());
-        label = classes[classId] + ":" + label;
-    }
-    
-    //Display the label at the top of the bounding box
-    int baseLine;
-    Size labelSize = getTextSize(label, FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
-    top = max(top, labelSize.height);
-    rectangle(frame, Point(left, top - round(1.5*labelSize.height)), Point(left + round(1.5*labelSize.width), top + baseLine), Scalar(255, 255, 255), FILLED);
-    putText(frame, label, Point(left, top), FONT_HERSHEY_SIMPLEX, 0.75, Scalar(0,0,0),1);
 }
 
 // Get the names of the output layers
