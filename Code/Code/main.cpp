@@ -75,9 +75,9 @@ vector<String> getOutputsNames(const Net& net);
 int main(int argc, char** argv)
 {
     //Load Yolo Model
-    //cv::dnn::Net net = cv::dnn::readNet("yolov3_training_last.weights", "yolov3_testing.cfg", "Darknet");
+    cv::dnn::Net net = cv::dnn::readNet("../../../Model/yolov3_training_last.weights", "../../../Model/yolov3_testing.cfg", "Darknet");
     //auto net = cv::dnn::readNet("yolov3_training_last.weights", "yolov3_testing.cfg", "Darknet");
-    cv::dnn::Net net = cv::dnn::readNetFromDarknet("yolov3.cfg", "yolov3.weights");
+    //cv::dnn::Net net = cv::dnn::readNetFromDarknet("yolov3.cfg", "yolov3.weights");
     
     net.setPreferableBackend(DNN_BACKEND_OPENCV);
     net.setPreferableTarget(DNN_TARGET_CPU);
@@ -86,8 +86,9 @@ int main(int argc, char** argv)
     
     Mat img = imread("../../Dataset progetto CV - Hand detection _ segmentation/rgb/01.jpg");
     
-    //Mat blob = blobFromImage(img, 1/255, cv::Size(416,416), Scalar(0,0,0), true, false);
-    Mat blob = blobFromImage(img, 0.01, Size(224, 224), Scalar(104, 117, 123));
+    
+    Mat blob = blobFromImage(img, 1/255, cv::Size(416,416), Scalar(0,0,0), true, false);
+    //Mat blob = blobFromImage(img, 0.01, Size(224, 224), Scalar(104, 117, 123));
     //blobFromImage(img, blob, 1/255, cv::Size(416,416), Scalar(0,0,0), true, false);
     
     
@@ -112,14 +113,16 @@ int main(int argc, char** argv)
       for (int j = 0; j<outs[i].rows; ++j){
         //cout<<typeid(data).name()<<endl;
         
-        Mat detection = outs[i].row(j);
+        //Mat detection = outs[i].row(j);
+        Mat detection = outs[i];
         //cout<<detection<<"**"<<endl;
         
-        Mat scores = detection.col(5);
+        //Mat scores = detection.col(5);
         Point classId;
-        double confidence;
+        float confidence = detection.at<float>(j,5);        
+        //cout<<confidence<<endl;
         
-        minMaxLoc(scores, NULL, &confidence, NULL, &classId);
+        //minMaxLoc(scores, NULL, &confidence, NULL, &classId);
         if (confidence > 0){
           cout<<confidence<<endl;
         }
