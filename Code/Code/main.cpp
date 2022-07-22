@@ -158,3 +158,24 @@ vector<String> getOutputsNames(const Net& net){
     }
   return names;
 }
+
+float boundingBoxes_IoU(vector<Rect> predBox, vector<Rect> gTBox){
+  
+  // coordinates for intersection rectangle
+  int xA = max(predBox[0], gTBox[0]);
+  int yA = max(predBox[1], gTBox[1]);
+  int xB = min(predBox[0]+predBox[2], gTBox[0]+gTBox[2]);
+  int yB = min(predBox[1]+predBox[3], gTBox[1]+gTBox[3]);
+  
+  float interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1);
+  
+  // Area of the predicted bounding box and the ground truth
+  float predBoxArea = (predBox[0]+predBox[2]) - predBox[0] + 1) * ((predBox[1]+predBox[3]) - predBox[1] + 1);
+	float gTBoxArea = ((gTBox[0]+gTBox[2]) - gTBox[0] + 1) * ((gTBox[1]+gTBox[3]) - gTBox[1] + 1);
+	
+  // compute iou as the intersection of the two boxes divided by their union
+  float iou = interArea / float(predBoxArea + gTBoxArea - interArea);
+  
+	# return the intersection over union value
+	return iou;  
+}
