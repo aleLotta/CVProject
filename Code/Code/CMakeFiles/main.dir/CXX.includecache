@@ -9,9 +9,7 @@
 /home/local/lottale17526/Desktop/CVProject/Code/Code/main.cpp
 opencv2/opencv.hpp
 -
-opencv2/dnn/dnn.hpp
--
-typeinfo
+fstream
 -
 
 /usr/local/include/opencv4/opencv2/calib3d.hpp
