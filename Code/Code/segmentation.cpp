@@ -1,77 +1,3 @@
-/*#include <opencv2/opencv.hpp>
-
-using namespace cv;
-using namespace std;
-
-int main(int argc, char** argv)
-{ 
-  int x = 631;
-  int y = 318;
-  int w = 217;
-  int h = 122;
-  
-  Mat img = imread("01.jpg");
-  cout<<img.size()<<endl;
-  
-  Mat box = Mat::zeros(img.rows, img.cols, img.type());
-  cout<<box.size()<<endl;
-  
-  for (int k = x; k < w+x; k++){
-    for (int z = y; z < h+y; z++){
-        box.at<Vec3b>(z,k) = img.at<Vec3b>(z,k);
-    }
-  }
-  
-  imshow("Prova", box);
-  //waitKey(0);
-  
-  
-  //bilateralFilter
-  //Mat blur = Mat::zeros(img.rows, img.cols, img.type());
-  Mat gray_box;
-  cvtColor( box, gray_box, COLOR_BGR2GRAY );
-  
-  //rectangle 
-  Mat rectangle = Mat::zeros(h, w, box.type());
-  int i = 0;
-  int j = 0;
-  for (int k = x; k < w+x; k++){
-    j = 0;
-    for (int z = y; z < h+y; z++){
-        rectangle.at<Vec3b>(j,i) = box.at<Vec3b>(z,k);
-        j++;
-    }
-    i++;
-  }
-  
-  imshow("rect", rectangle);
-  waitKey(0);
-  
-  Mat blur;
-  bilateralFilter(rectangle, blur, 9, 150, 150);
-  imshow("Prova1", blur);
-  waitKey(0);
-  
-  
-  
-  //Otsu
-  Mat gray_rect;
-  cvtColor( rectangle, gray_rect, COLOR_BGR2GRAY );
-  
-  Mat thresh;
-  //long double thres = cv::threshold(rectangle, thresh, 0,255, THRESH_OTSU);
-  long double thres = cv::threshold(gray_rect, thresh, 0,255, THRESH_OTSU);
-  
-  imshow("Prova2", thresh);
-  waitKey(0);
-  
-  
-  //Try with Morphological operators or findContours and drawContours
-  //
-  
-  return 0;
-}*/
-
 #include <opencv2/opencv.hpp>
 
 using namespace cv;
@@ -176,19 +102,32 @@ int main(int argc, char** argv)
  
  
  
-  //Otsu
+  
   Mat gray_rect;
   cvtColor( rectangle, gray_rect, COLOR_BGR2GRAY );
 
   gray_rect.copyTo(src_gray);
   
+  
+  // K-MEANS
   //GaussianBlur( src_gray, src_gray, Size(9,9), 0);
-  /*Mat clusteredImg = K_Means(src_gray, 3);
+  Mat clusteredImg = K_Means(src_gray, 3);
   imshow("clusters", clusteredImg);
-  waitKey(0);*/
- 
+  waitKey(0);
+  
+  uchar central_pixel = clusteredImg.at<uchar>(clusteredImg.rows/2,clusteredImg.cols/2);
+  
+  Mat otsu_img;
+  threshold(clusteredImg, otsu_img, 0, 255, THRESH_OTSU);
+  imshow("Otsu", otsu_img);
+  waitKey();
+  
+  
+  
+  
+  // OTSU THRESHOLD
   //Mat thresh;
-  Mat temp_img, dst_img, t_img;
+  /*Mat temp_img, dst_img, t_img;
   
   dst_img = Mat::zeros(gray_rect.size(), gray_rect.type());
   t_img = Mat::zeros(gray_rect.size(), gray_rect.type());
@@ -204,6 +143,7 @@ int main(int argc, char** argv)
           temp_img.at<uchar>(i,j) = 255;
         }
       }
+      
       gray_rect.copyTo(temp_img, temp_img);
       
       //GaussianBlur(temp_img,t_img,Size(9,9),0);
@@ -211,19 +151,24 @@ int main(int argc, char** argv)
       threshold(t_img, t_img, 0, 255, THRESH_OTSU);
       
       dst_img = dst_img + t_img;
+      
+      imshow("k",dst_img);
+      waitKey();
     }
   } 
   imshow("Otsu", dst_img);
-  waitKey(0);
+  waitKey();*/
  
- 
-  //Try with Morphological operators or findContours and drawContours
+  
+  // CANNY + CONTOURS
   /*const int max_thresh = 255;
   const char* source_window = "Source";
   namedWindow(source_window);
   createTrackbar( "Canny thresh:", source_window, &thresh, max_thresh, thresh_callback );
   thresh_callback(0,0);
   waitKey();*/
+
+  
 
   return 0;
 }

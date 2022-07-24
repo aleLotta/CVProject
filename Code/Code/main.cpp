@@ -27,8 +27,6 @@ Scalar YELLOW = Scalar(0, 255, 255);
 Scalar RED = Scalar(0,0,255);
 
 
-float boundingBoxes_IoU(vector<Rect> predBox, vector<Rect> gTBox);
-
 /*** 3) Draw Label ***/
 
 void draw_label(Mat& input_image, string label, int left, int top)
@@ -68,7 +66,7 @@ vector<Mat> pre_process(Mat &input_image, Net &net)
 
 /*** 5) Post-Processing ***/
 
-Mat post_process(Mat &input_image, vector<Mat> &outputs, vector<Rect> &boxes)
+Mat post_process(Mat &input_image, vector<Mat> &outputs, vector<Rect> gtBoxes)
 {
     // Only 1 class id (0: hand)
     Point class_id;
@@ -76,7 +74,7 @@ Mat post_process(Mat &input_image, vector<Mat> &outputs, vector<Rect> &boxes)
     class_id.y = 0;
     // Initialize vectors to hold respective outputs while unwrapping detections
     vector<float> confidences;
-    //vector<Rect> boxes;
+    vector<Rect> boxes;
     // Resizing factor
     float x_factor = input_image.cols / INPUT_WIDTH;
     float y_factor = input_image.rows / INPUT_HEIGHT;
@@ -119,6 +117,9 @@ Mat post_process(Mat &input_image, vector<Mat> &outputs, vector<Rect> &boxes)
     // Perform Non-Maximum Suppression and draw predictions
     vector<int> indices;
     NMSBoxes(boxes, confidences, SCORE_THRESHOLD, NMS_THRESHOLD, indices);
+	// Draw ground truth bounding box
+	for (int i = 0; i < gtBoxes.size(); i++)
+        rectangle(input_image, Point(gtBoxes[i].x, gtBoxes[i].y), Point(gtBoxes[i].x + gtBoxes[i].width, gtBoxes[i].y + gtBoxes[i].height), RED, 3*THICKNESS);
     for (int i = 0; i < indices.size(); i++)
     {
         int idx = indices[i];
@@ -137,75 +138,62 @@ Mat post_process(Mat &input_image, vector<Mat> &outputs, vector<Rect> &boxes)
     }
     return input_image;
 }
+	
+
+/*** 6) IoU Metric ***/
+
+float bboxes_iou(Rect gtBox, Rect predBox)
+{
+    // Coordinates for intersection rectangle
+    int xA = max(gtBox.x, predBox.x);
+    int yA = max(gtBox.y, predBox.y);
+    int xB = min(gtBox.x + gtBox.width, predBox.x + predBox.width);
+    int yB = min(gtBox.y + gtBox.height, predBox.y + predBox.height);
+    // Area of intersection rectangle
+    float interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1);
+    // Area of predicted and ground truth bounding boxes
+    //float gtBoxArea = (gtBox.width + 1) * (gtBox.height + 1);
+    //float predBoxArea = (predBox.width + 1) * (predBox.height + 1);
+    // IoU as the intersection area of the two boxes divided by their union area
+    float iou = interArea / float(gtBox.area() + predBox.area() - interArea);
+    return iou;
+}
 
 
-/*** 6) Main Function ***/
+/*** -> Main Function ***/
 
 int main()
 {
-    // Load image
+    // Load images and labels
     Mat frame;
-    vector<cv::String> fn;
-    glob("../../Dataset progetto CV - Hand detection _ segmentation/rgb/*.jpg", fn, false);
-
-    vector<Mat> images;
-    
+    vector<string> image_paths;
+    vector<string> label_paths;
+    glob("../../Dataset progetto CV - Hand detection _ segmentation/rgb/*.jpg", image_paths, false); // 30 imaes
+    glob("../../Dataset progetto CV - Hand detection _ segmentation/det/*.txt", label_paths, false); // 30 labels
+    // string path = "val/images/CARDS_LIVINGROOM_B_T_frame_0504_jpg.rf.50fe772fe60ff8aec573157df5824a5a.jpg";
+    // string path = "val/images/2.jpg";
+    // frame = imread(path);
     // Load model
     Net net;
     net = readNet("../../best.onnx");
-    // Process the image
+    // Process images and labels
     vector<Mat> detections;
-    
-    size_t count = fn.size(); //number of png files in images folder
-    for (size_t i=0; i<count; i++){
-        frame = imread(fn[i]);
+	ifstream file;
+	vector<Rect> labels;
+	int x, y, w, h;
+    for (int i = 0; i < image_paths.size(); i++)
+	{
+		labels.clear();
+        frame = imread(image_paths[i]);
+		file = ifstream(label_paths[i]);
+		while (file >> x >> y >> w >> h) // mickel <3
+			labels.push_back(Rect(x, y, w, h));
         detections = pre_process(frame, net);
-        Mat frame_copy; frame.copyTo(frame_copy); // deep copy
-        vector<Rect> boxes;
-        Mat img = post_process(frame_copy, detections, boxes);
+        Mat frame_copy; frame.copyTo(frame_copy); // deep copy of image
+        // Mat img = post_process(frame_copy, detections);
+        Mat img = post_process(frame_copy, detections, labels);
         imshow("Output", img);
         waitKey(0);
     }
-    
-    //string path = "../../Dataset progetto CV - Hand detection _ segmentation/rgb/02.jpg";
-    // string path = "val/images/2.jpg";
-    //frame = imread(path);
-    
-    
-    // read groundTruth
-    vector<cv::String> fn;
-    glob("../../Dataset progetto CV - Hand detection _ segmentation/det/*.txt", fn, false);
-    for (size_t i = 0; i < fn.size(); i++){
-      newfile.open(fn[i],ios::in); //open a file to perform read operation using file object
-      if (newfile.is_open()){ //checking whether the file is open
-        string tp;
-        while(getline(newfile, tp)){ //read data from file object and put it into string.
-          cout << tp << "\n"; //print the data of the string
-        }
-        newfile.close(); //close the file object.
-      }
-    }
-    
     return 0;
-}
-
-float boundingBoxes_IoU(vector<Rect> predBox, vector<Rect> gTBox){
-  
-  // coordinates for intersection rectangle
-  int xA = max(predBox[0], gTBox[0]);
-  int yA = max(predBox[1], gTBox[1]);
-  int xB = min(predBox[0]+predBox[2], gTBox[0]+gTBox[2]);
-  int yB = min(predBox[1]+predBox[3], gTBox[1]+gTBox[3]);
-  
-  float interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1);
-  
-  // Area of the predicted bounding box and the ground truth
-  float predBoxArea = (predBox[0]+predBox[2]) - predBox[0] + 1) * ((predBox[1]+predBox[3]) - predBox[1] + 1);
-	float gTBoxArea = ((gTBox[0]+gTBox[2]) - gTBox[0] + 1) * ((gTBox[1]+gTBox[3]) - gTBox[1] + 1);
-	
-  // compute iou as the intersection of the two boxes divided by their union
-  float iou = interArea / float(predBoxArea + gTBoxArea - interArea);
-  
-	# return the intersection over union value
-	return iou;  
 }
