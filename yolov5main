@@ -66,7 +66,7 @@ vector<Mat> pre_process(Mat &input_image, Net &net)
 
 /*** 5) Post-Processing ***/
 
-Mat post_process(Mat &input_image, vector<Mat> &outputs)
+Mat post_process(Mat &input_image, vector<Mat> &outputs, vector<Rect> gtBoxes)
 {
     // Only 1 class id (0: hand)
     Point class_id;
@@ -117,6 +117,9 @@ Mat post_process(Mat &input_image, vector<Mat> &outputs)
     // Perform Non-Maximum Suppression and draw predictions
     vector<int> indices;
     NMSBoxes(boxes, confidences, SCORE_THRESHOLD, NMS_THRESHOLD, indices);
+	// Draw ground truth bounding box
+	for (int i = 0; i < gtBoxes.size(); i++)
+        rectangle(input_image, Point(gtBoxes[i].x, gtBoxes[i].y), Point(gtBoxes[i].x + gtBoxes[i].width, gtBoxes[i].y + gtBoxes[i].height), RED, 3*THICKNESS);
     for (int i = 0; i < indices.size(); i++)
     {
         int idx = indices[i];
@@ -135,26 +138,62 @@ Mat post_process(Mat &input_image, vector<Mat> &outputs)
     }
     return input_image;
 }
+	
+
+/*** 6) IoU Metric ***/
+
+float bboxes_iou(Rect gtBox, Rect predBox)
+{
+    // Coordinates for intersection rectangle
+    int xA = max(gtBox.x, predBox.x);
+    int yA = max(gtBox.y, predBox.y);
+    int xB = min(gtBox.x + gtBox.width, predBox.x + predBox.width);
+    int yB = min(gtBox.y + gtBox.height, predBox.y + predBox.height);
+    // Area of intersection rectangle
+    float interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1);
+    // Area of predicted and ground truth bounding boxes
+    //float gtBoxArea = (gtBox.width + 1) * (gtBox.height + 1);
+    //float predBoxArea = (predBox.width + 1) * (predBox.height + 1);
+    // IoU as the intersection area of the two boxes divided by their union area
+    float iou = interArea / float(gtBox.area() + predBox.area() - interArea);
+    return iou;
+}
 
 
-/*** 6) Main Function ***/
+/*** -> Main Function ***/
 
 int main()
 {
-    // Load image
+    // Load images and labels
     Mat frame;
-    string path = "val/images/CARDS_LIVINGROOM_B_T_frame_0504_jpg.rf.50fe772fe60ff8aec573157df5824a5a.jpg";
+    vector<string> image_paths;
+    vector<string> label_paths;
+    glob("rgb/*.jpg", image_paths, false); // 30 imaes
+    glob("det/*.txt", label_paths, false); // 30 labels
+    // string path = "val/images/CARDS_LIVINGROOM_B_T_frame_0504_jpg.rf.50fe772fe60ff8aec573157df5824a5a.jpg";
     // string path = "val/images/2.jpg";
-    frame = imread(path);
+    // frame = imread(path);
     // Load model
     Net net;
     net = readNet("Model5/best.onnx");
-    // Process the image
+    // Process images and labels
     vector<Mat> detections;
-    detections = pre_process(frame, net);
-    Mat frame_copy; frame.copyTo(frame_copy); // deep copy
-    Mat img = post_process(frame_copy, detections);
-    imshow("Output", img);
-    waitKey(0);
+	ifstream file;
+	vector<Rect> labels;
+	int x, y, w, h;
+    for (int i = 0; i < image_paths.size(); i++)
+	{
+		labels.clear();
+        frame = imread(image_paths[i]);
+		file = ifstream(label_paths[i]);
+		while (file >> x >> y >> w >> h) // mickel <3
+			labels.push_back(Rect(x, y, w, h));
+        detections = pre_process(frame, net);
+        Mat frame_copy; frame.copyTo(frame_copy); // deep copy of image
+        // Mat img = post_process(frame_copy, detections);
+        Mat img = post_process(frame_copy, detections, labels);
+        imshow("Output", img);
+        waitKey(0);
+    }
     return 0;
 }
