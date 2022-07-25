@@ -52,15 +52,28 @@ int main(int argc, char** argv)
     Mat temp(img.rows, img.cols, CV_8UC3, Scalar(255, 0, 0));
     temp.copyTo(foreground, result); // bg pixels not copied
 
-    /*for (int k = x; k < x + w; k++) {
-        for (int z = y; z < y + h; z++) {
-            if (foreground.at<Vec3b>(z, k)[0] != 0 && foreground.at<Vec3b>(z, k)[1] != 0 && foreground.at<Vec3b>(z, k)[2] != 0) {
-                foreground.at<Vec3b>(z, k)[0] = 255;
-                foreground.at<Vec3b>(z, k)[1] = 0;
-                foreground.at<Vec3b>(z, k)[2] = 0;
-            }
+    /*img.copyTo(foreground, result);
+    Mat box = Mat::zeros(h, w, img.type());
+
+    int k = 0;
+    int z = 0;
+    for (int i = x; i < x + w; i++) {
+        z = 0;
+        for (int j = y; j < y + h; j++) {
+            box.at<Vec3b>(z, k) = foreground.at<Vec3b>(j, i);
+            z++;
         }
-    }*/
+        k++;
+    }
+    imshow("Bounding Box", box);
+    waitKey();
+
+    Mat blur;
+    //bilateralFilter(box, blur, 9, 100, 150);
+    GaussianBlur( box, blur, Size(9,9), 0);
+    Mat clusteredImg = K_Means(blur, 3);
+    imshow("clusters", clusteredImg);
+    waitKey(0);*/
 
     imshow("Foreground.jpg", foreground);
     waitKey();
