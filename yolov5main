@@ -21,10 +21,10 @@ const float FONT_SCALE = 0.7;
 const int FONT_FACE = FONT_HERSHEY_SIMPLEX;
 const int THICKNESS = 1;
 // colors
-Scalar BLACK = Scalar(0,0,0);
+Scalar BLACK = Scalar(0, 0, 0);
 Scalar BLUE = Scalar(255, 178, 50);
 Scalar YELLOW = Scalar(0, 255, 255);
-Scalar RED = Scalar(0,0,255);
+Scalar RED = Scalar(0, 0, 255);
 
 
 /*** 3) Draw Label ***/
@@ -48,11 +48,11 @@ void draw_label(Mat& input_image, string label, int left, int top)
 
 /*** 4) Pre-Processing ***/
 
-vector<Mat> pre_process(Mat &input_image, Net &net)
+vector<Mat> pre_process(const Mat& input_image, Net& net)
 {
     // Convert to blob
     Mat blob;
-    blobFromImage(input_image, blob, 1./255., Size(INPUT_WIDTH, INPUT_HEIGHT), Scalar(), true, false);
+    blobFromImage(input_image, blob, 1. / 255., Size(INPUT_WIDTH, INPUT_HEIGHT), Scalar(), true, false);
 
     net.setInput(blob);
 
@@ -66,7 +66,7 @@ vector<Mat> pre_process(Mat &input_image, Net &net)
 
 /*** 5) Post-Processing ***/
 
-Mat post_process(Mat &input_image, vector<Mat> &outputs, vector<Rect> gtBoxes)
+Mat post_process(Mat& input_image, const vector<Mat>& outputs, const vector<Rect>& gtBoxes, vector<Rect>& boxes)
 {
     // Only 1 class id (0: hand)
     Point class_id;
@@ -74,13 +74,12 @@ Mat post_process(Mat &input_image, vector<Mat> &outputs, vector<Rect> gtBoxes)
     class_id.y = 0;
     // Initialize vectors to hold respective outputs while unwrapping detections
     vector<float> confidences;
-    vector<Rect> boxes;
     // Resizing factor
     float x_factor = input_image.cols / INPUT_WIDTH;
     float y_factor = input_image.rows / INPUT_HEIGHT;
-    float *data = (float *)outputs[0].data;
+    float* data = (float*)outputs[0].data;
     const int dimensions = 6;
-	
+
     /* A. Filter Good Detections */
 
     // 25200 for default size 640
@@ -117,9 +116,10 @@ Mat post_process(Mat &input_image, vector<Mat> &outputs, vector<Rect> gtBoxes)
     // Perform Non-Maximum Suppression and draw predictions
     vector<int> indices;
     NMSBoxes(boxes, confidences, SCORE_THRESHOLD, NMS_THRESHOLD, indices);
-	// Draw ground truth bounding box
-	for (int i = 0; i < gtBoxes.size(); i++)
-        rectangle(input_image, Point(gtBoxes[i].x, gtBoxes[i].y), Point(gtBoxes[i].x + gtBoxes[i].width, gtBoxes[i].y + gtBoxes[i].height), RED, 3*THICKNESS);
+    // *TEMP* Draw ground truth bounding box
+    // if (gtBoxes.size() != 0)
+    for (int i = 0; i < gtBoxes.size(); i++)
+        rectangle(input_image, Point(gtBoxes[i].x, gtBoxes[i].y), Point(gtBoxes[i].x + gtBoxes[i].width, gtBoxes[i].y + gtBoxes[i].height), RED, 3 * THICKNESS);
     for (int i = 0; i < indices.size(); i++)
     {
         int idx = indices[i];
@@ -129,7 +129,7 @@ Mat post_process(Mat &input_image, vector<Mat> &outputs, vector<Rect> gtBoxes)
         int width = box.width;
         int height = box.height;
         // Draw bounding box
-        rectangle(input_image, Point(left, top), Point(left + width, top + height), BLUE, 3*THICKNESS);
+        rectangle(input_image, Point(left, top), Point(left + width, top + height), BLUE, 3 * THICKNESS);
         // Get the label for the class name and its confidence
         string label = format("%.2f", confidences[idx]);
         // label = CLASS_NAME + ":" + label;
@@ -138,7 +138,7 @@ Mat post_process(Mat &input_image, vector<Mat> &outputs, vector<Rect> gtBoxes)
     }
     return input_image;
 }
-	
+
 
 /*** 6) IoU Metric ***/
 
@@ -160,40 +160,132 @@ float bboxes_iou(Rect gtBox, Rect predBox)
 }
 
 
+/*** 7) Hand Segmentation ***/
+
+Mat hand_segmentation(Mat& frame, const vector<Rect>& boxes)
+{
+    Mat temp_img, mask, bgdModel, fgdModel;
+    cvtColor(frame, frame, COLOR_RGBA2RGB, 0);
+    // Final image (initialized full black) to return at the end
+    Mat final_img(frame.rows, frame.cols, frame.type(), BLACK);
+    for (int i = 0; i < boxes.size(); i++)
+    {
+        // Use a temporary image for each boundig box
+        frame.copyTo(temp_img);
+        Rect rect = boxes[i];
+        grabCut(temp_img, mask, rect, bgdModel, fgdModel, 1, GC_INIT_WITH_RECT);
+        // Draw background (black) or hand (white) pixels on temporary image
+        for (int i = 0; i < frame.rows; i++)
+            for (int j = 0; j < frame.cols; j++)
+                if (mask.at<uchar>(i, j) == 0 || mask.at<uchar>(i, j) == 2)
+                {
+                    temp_img.at<Vec3b>(i, j)[0] = 0;
+                    temp_img.at<Vec3b>(i, j)[1] = 0;
+                    temp_img.at<Vec3b>(i, j)[2] = 0;
+                }
+                else
+                {
+                    temp_img.at<Vec3b>(i, j)[0] = 255;
+                    temp_img.at<Vec3b>(i, j)[1] = 255;
+                    temp_img.at<Vec3b>(i, j)[2] = 255;
+                }
+        // Partial sum of current temporary image into final image
+        for (int i = 0; i < frame.rows; i++)
+            for (int j = 0; j < frame.cols; j++)
+                if (final_img.at<Vec3b>(i, j)[0] == 0 && final_img.at<Vec3b>(i, j)[1] == 0 && final_img.at<Vec3b>(i, j)[2] == 0)
+                {
+                    final_img.at<Vec3b>(i, j)[0] += temp_img.at<Vec3b>(i, j)[0];
+                    final_img.at<Vec3b>(i, j)[1] += temp_img.at<Vec3b>(i, j)[1];
+                    final_img.at<Vec3b>(i, j)[2] += temp_img.at<Vec3b>(i, j)[2];
+                }
+        // *TEMP* Draw grab rect
+        rectangle(final_img, Point(boxes[i].x, boxes[i].y), Point(boxes[i].x + boxes[i].width, boxes[i].y + boxes[i].height), YELLOW);
+    }
+    return final_img;
+}
+
+
+/*** 8) IoU Metric ***/
+
+vector<int> pixel_accuracy(const Mat& gtMask, const Mat& predMask)
+{
+    // Counters for pixels in ground truth mask
+    int gt_hand = 0, gt_non_hand = 0;
+    // Accuracy parameters
+    float acc_hand = 0.0, acc_non_hand = 0.0;
+
+    // Calculate wrong hand pixels and wrong non-hand pixels
+    for (int i = 0; i < gtMask.rows; i++)
+        for (int j = 0; j < gtMask.cols; j++)
+        {
+            if (gtMask.at<Vec3b>(i, j)[0] == 0 && gtMask.at<Vec3b>(i, j)[1] == 0 && gtMask.at<Vec3b>(i, j)[2] == 0)
+                gt_non_hand++;
+            else
+                gt_hand++;
+
+            if (gtMask.at<Vec3b>(i, j) != predMask.at<Vec3b>(i, j))
+                // if pixel: truth = non-hand AND predicted = hand
+                if (gtMask.at<Vec3b>(i, j)[0] == 0 && gtMask.at<Vec3b>(i, j)[1] == 0 && gtMask.at<Vec3b>(i, j)[2] == 0)
+                    acc_non_hand++;
+                // if pixel: truth = hand AND predicted = non-hand
+                else
+                    acc_hand++;
+        }
+    // Hand accuracy = (# real hand pixels - # hand pixels not found) / # real hand pixels
+    acc_hand = (gt_hand - acc_hand) / gt_hand;
+    // Non-hand accuracy = (# real non-hand pixels - # non-hand pixels not found) / # real non-hand pixels
+    acc_non_hand = (gt_non_hand - acc_non_hand) / gt_non_hand;
+
+    vector<int> vec;
+    vec.push_back(acc_hand);
+    vec.push_back(acc_non_hand);
+    return vec;
+}
+
+
 /*** -> Main Function ***/
 
 int main()
 {
-    // Load images and labels
-    Mat frame;
-    vector<string> image_paths;
-    vector<string> label_paths;
-    glob("rgb/*.jpg", image_paths, false); // 30 imaes
-    glob("det/*.txt", label_paths, false); // 30 labels
-    // string path = "val/images/CARDS_LIVINGROOM_B_T_frame_0504_jpg.rf.50fe772fe60ff8aec573157df5824a5a.jpg";
-    // string path = "val/images/2.jpg";
-    // frame = imread(path);
-    // Load model
+    // Paths
+    string image_path = "29.jpg";// "rgb/23.jpg";
+    string labels_path = "29.txt";// "det/23.txt";
+    string mask_path = "29.png";// "det/23.txt";
     Net net;
-    net = readNet("Model5/best.onnx");
-    // Process images and labels
+    Mat frame, frame_copy;
     vector<Mat> detections;
-	ifstream file;
-	vector<Rect> labels;
-	int x, y, w, h;
-    for (int i = 0; i < image_paths.size(); i++)
-	{
-		labels.clear();
-        frame = imread(image_paths[i]);
-		file = ifstream(label_paths[i]);
-		while (file >> x >> y >> w >> h) // mickel <3
-			labels.push_back(Rect(x, y, w, h));
-        detections = pre_process(frame, net);
-        Mat frame_copy; frame.copyTo(frame_copy); // deep copy of image
-        // Mat img = post_process(frame_copy, detections);
-        Mat img = post_process(frame_copy, detections, labels);
-        imshow("Output", img);
-        waitKey(0);
-    }
+    vector<Rect> labels, predBoxes;
+    ifstream file;
+    int x, y, w, h;
+
+    // Load image
+    frame = imread(image_path);
+    // Load labels
+    file = ifstream(labels_path);
+    while (file >> x >> y >> w >> h)
+        labels.push_back(Rect(x, y, w, h));
+    // Load model
+    net = readNet("best50s.onnx");
+
+    // Process image and labels
+    frame.copyTo(frame_copy); // deep copy of image
+    detections = pre_process(frame, net);
+    post_process(frame_copy, detections, labels, predBoxes);
+
+    namedWindow("Output", WINDOW_NORMAL);
+    imshow("Output", frame_copy);
+    waitKey(0);
+
+    // Image segmentation
+    Mat gtMask = imread(mask_path);
+    Mat predMask = hand_segmentation(frame, predBoxes);
+    namedWindow("Segmented image", WINDOW_NORMAL);
+    imshow("Segmented image", gtMask);
+    imshow("Segmented image", predMask);
+    waitKey(0);
+
+    vector<int> acc = pixel_accuracy(gtMask, predMask);
+    cout << acc[0] << ", " << acc[1];
+
     return 0;
 }
