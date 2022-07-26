@@ -167,9 +167,10 @@ float bboxes_iou(Rect gtBox, Rect predBox)
 
 /*** 7) Hand Segmentation ***/
 
-void hand_segmentation(Mat& frame, vector<Rect> boxes) {
+Mat hand_segmentation(Mat& frame, vector<Rect> boxes, Mat& mask) {
     /* SEGMENTATION */
     Mat final_img; frame.copyTo(final_img);
+
 
     for (int t = 0; t < boxes.size(); t++) {
         Rect box = boxes[t];
@@ -194,6 +195,7 @@ void hand_segmentation(Mat& frame, vector<Rect> boxes) {
 
         // Get the pixels marked as likely foreground
         cv::compare(result, cv::GC_PR_FGD, result, cv::CMP_EQ);
+        mask = mask + result;
         // Generate output image
         cv::Mat foreground(frame.size(), CV_8UC3, cv::Scalar(0, 0, 0));
         //cv::Mat background(image.size(),CV_8UC3,cv::Scalar(255,255,255));
@@ -203,19 +205,35 @@ void hand_segmentation(Mat& frame, vector<Rect> boxes) {
         imshow("Foreground.jpg", foreground);
         //waitKey();
 
-        /* // draw rectangle on original image
-        cv::rectangle(img, coordinates, cv::Scalar(255, 255, 255), 1);
-        Mat background;
-        img.copyTo(background, ~result);
-        imshow("Background.jpg", background);
-        waitKey(); */
-
         //Mat final_img;
         addWeighted(final_img, 1, foreground, 0.5, 0.0, final_img);
         imshow("Overlap", final_img);
-        waitKey();
+        //waitKey();
 
     }
+    Mat f_img;
+    final_img.copyTo(f_img);
+    return f_img;
+}
+
+float pixel_accuracy(Mat gT, Mat det_img) {
+
+    float true_neg = 0, true_pos = 0;
+    for (int i = 0; i < gT.cols; i++) {
+        for (int j = 0; j < gT.rows; j++) {
+            if (gT.at<uchar>(j, i) == 0 && det_img.at<uchar>(j, i) == 0) {
+                true_neg++;
+            }
+            if (gT.at<uchar>(j, i) == 255 && det_img.at<uchar>(j, i) == 255) {
+                true_pos++;
+            }
+        }
+    }
+
+    float total = gT.total();
+
+    float pA = (true_neg + true_pos) / total;
+    return pA;
 }
 
 /*** -> Main Function ***/
@@ -226,8 +244,10 @@ int main()
     Mat frame;
     vector<string> image_paths;
     vector<string> label_paths;
+    vector<string> mask_paths;
     glob("Dataset progetto CV - Hand detection _ segmentation/rgb/*.jpg", image_paths, false); // 30 imaes
     glob("Dataset progetto CV - Hand detection _ segmentation/det/*.txt", label_paths, false); // 30 labels
+    glob("Dataset progetto CV - Hand detection _ segmentation/mask/*.png", mask_paths, false); // 30 masks
     // string path = "val/images/CARDS_LIVINGROOM_B_T_frame_0504_jpg.rf.50fe772fe60ff8aec573157df5824a5a.jpg";
     // string path = "val/images/2.jpg";
     // frame = imread(path);
@@ -239,6 +259,7 @@ int main()
     ifstream file;
     vector<Rect> labels;
     vector<Rect> boxes;
+    Mat gT_mask;
 
     int x, y, w, h;
     for (int i = 0; i < image_paths.size(); i++)
@@ -254,9 +275,27 @@ int main()
         boxes.clear();
         Mat img = post_process(frame_copy, detections, labels, boxes);
         imshow("Output", img);
-        waitKey(0);
+        //waitKey(0);
 
-        hand_segmentation(frame, boxes);
+
+        // Segmentation
+        gT_mask = imread(mask_paths[i], IMREAD_GRAYSCALE);
+        Mat mask_img = Mat::zeros(frame.rows, frame.cols, CV_8U);
+
+        Mat final_img = hand_segmentation(frame, boxes, mask_img);
+
+        std::string savingName = "Results/" + std::to_string(i) + ".jpg";
+        imwrite(savingName, final_img);
+
+        // Caluclate pixel accuracy
+        float frame_PA = pixel_accuracy(gT_mask, mask_img);
+
+        fstream pA_results;
+        pA_results.open("pixel_accuracy.txt", fstream::app);
+        if (pA_results.is_open()) {
+            pA_results << "mask" + to_string(i) + "\n" + to_string(frame_PA) + "\n\n";
+            pA_results.close();
+        }
 
     }
     return 0;
