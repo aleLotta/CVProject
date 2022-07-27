@@ -170,7 +170,9 @@ float bboxes_iou(Rect gtBox, Rect predBox)
 Mat hand_segmentation(Mat& frame, vector<Rect> boxes, Mat& mask) {
     /* SEGMENTATION */
     Mat final_img; frame.copyTo(final_img);
-
+    Mat blur;
+    //bilateralFilter(frame, blur, 9, 100, 100);
+    GaussianBlur(frame, blur, Size(9, 9), 0, 0);
 
     for (int t = 0; t < boxes.size(); t++) {
         Rect box = boxes[t];
@@ -186,7 +188,7 @@ Mat hand_segmentation(Mat& frame, vector<Rect> boxes, Mat& mask) {
         Mat bgModel, fgModel; // the models (internally used)
 
         // GrabCut segmentation
-        grabCut(frame,    // input image
+        grabCut(blur,    // input image
             result,   // segmentation result
             coordinates,// rectangle containing foreground
             bgModel, fgModel, // models
@@ -202,12 +204,12 @@ Mat hand_segmentation(Mat& frame, vector<Rect> boxes, Mat& mask) {
         Mat temp(frame.rows, frame.cols, CV_8UC3, colours[t]);
         temp.copyTo(foreground, result); // bg pixels not copied
 
-        imshow("Foreground.jpg", foreground);
+        //imshow("Foreground.jpg", foreground);
         //waitKey();
 
         //Mat final_img;
         addWeighted(final_img, 1, foreground, 0.5, 0.0, final_img);
-        imshow("Overlap", final_img);
+        //imshow("Overlap", final_img);
         //waitKey();
 
     }
@@ -274,7 +276,7 @@ int main()
         // Mat img = post_process(frame_copy, detections);
         boxes.clear();
         Mat img = post_process(frame_copy, detections, labels, boxes);
-        imshow("Output", img);
+        //imshow("Output", img);
         //waitKey(0);
 
 
@@ -293,7 +295,7 @@ int main()
         fstream pA_results;
         pA_results.open("pixel_accuracy.txt", fstream::app);
         if (pA_results.is_open()) {
-            pA_results << "mask" + to_string(i) + "\n" + to_string(frame_PA) + "\n\n";
+            pA_results << "pa_mask" + to_string(i) + "\n" + to_string(frame_PA) + "\n\n";
             pA_results.close();
         }
 
