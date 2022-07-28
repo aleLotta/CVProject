@@ -69,7 +69,7 @@ vector<Mat> pre_process(Mat& input_image, Net& net)
 
 /*** 5) Post-Processing ***/
 
-Mat post_process(Mat& input_image, vector<Mat>& outputs, vector<Rect> gtBoxes, vector<Rect>& detBoxes)
+Mat post_process(Mat& input_image, const vector<Mat>& outputs, const vector<Rect>& gtBoxes, vector<Rect>& detBoxes)
 {
     // Only 1 class id (0: hand)
     Point class_id;
@@ -121,8 +121,8 @@ Mat post_process(Mat& input_image, vector<Mat>& outputs, vector<Rect> gtBoxes, v
     vector<int> indices;
     NMSBoxes(boxes, confidences, SCORE_THRESHOLD, NMS_THRESHOLD, indices);
     // Draw ground truth bounding box
-    for (int i = 0; i < gtBoxes.size(); i++)
-        rectangle(input_image, Point(gtBoxes[i].x, gtBoxes[i].y), Point(gtBoxes[i].x + gtBoxes[i].width, gtBoxes[i].y + gtBoxes[i].height), RED, 3 * THICKNESS);
+    //for (int i = 0; i < gtBoxes.size(); i++)
+    //    rectangle(input_image, Point(gtBoxes[i].x, gtBoxes[i].y), Point(gtBoxes[i].x + gtBoxes[i].width, gtBoxes[i].y + gtBoxes[i].height), RED, 3 * THICKNESS);
     for (int i = 0; i < indices.size(); i++)
     {
         int idx = indices[i];
@@ -131,10 +131,11 @@ Mat post_process(Mat& input_image, vector<Mat>& outputs, vector<Rect> gtBoxes, v
         int top = box.y;
         int width = box.width;
         int height = box.height;
+
         // Save detected Box
         detBoxes.push_back(Rect(left, top, width, height));
         // Draw bounding box
-        rectangle(input_image, Point(left, top), Point(left + width, top + height), BLUE, 3 * THICKNESS);
+        rectangle(input_image, Point(left, top), Point(left + width, top + height), BLUE, 2 * THICKNESS);
         // Get the label for the class name and its confidence
         string label = format("%.2f", confidences[idx]);
         // label = CLASS_NAME + ":" + label;
@@ -181,7 +182,6 @@ Mat hand_segmentation(Mat& frame, vector<Rect> boxes, Mat& mask) {
         int w = box.width;
         int h = box.height;
 
-        // ALTERNATIVE SOLUTION
         Rect coordinates = Rect(x, y, w, h);
 
         Mat result; // segmentation result (4 possible values)
@@ -197,10 +197,12 @@ Mat hand_segmentation(Mat& frame, vector<Rect> boxes, Mat& mask) {
 
         // Get the pixels marked as likely foreground
         cv::compare(result, cv::GC_PR_FGD, result, cv::CMP_EQ);
+        // Computation for the final mask
         mask = mask + result;
         // Generate output image
         cv::Mat foreground(frame.size(), CV_8UC3, cv::Scalar(0, 0, 0));
-        //cv::Mat background(image.size(),CV_8UC3,cv::Scalar(255,255,255));
+
+        // Apply a color to the mask
         Mat temp(frame.rows, frame.cols, CV_8UC3, colours[t]);
         temp.copyTo(foreground, result); // bg pixels not copied
 
@@ -208,15 +210,18 @@ Mat hand_segmentation(Mat& frame, vector<Rect> boxes, Mat& mask) {
         //waitKey();
 
         //Mat final_img;
+        // Merge the original image with the mask
         addWeighted(final_img, 1, foreground, 0.5, 0.0, final_img);
         //imshow("Overlap", final_img);
         //waitKey();
 
     }
-    Mat f_img;
-    final_img.copyTo(f_img);
-    return f_img;
+
+    return final_img;
 }
+
+
+/*** 8) Pixel Accuracy Metric ***/
 
 float pixel_accuracy(Mat gT, Mat det_img) {
 
@@ -242,7 +247,7 @@ float pixel_accuracy(Mat gT, Mat det_img) {
 
 int main()
 {
-    // Load images and labels
+    // Load images, labels and masks
     Mat frame;
     vector<string> image_paths;
     vector<string> label_paths;
@@ -250,44 +255,58 @@ int main()
     glob("Dataset progetto CV - Hand detection _ segmentation/rgb/*.jpg", image_paths, false); // 30 imaes
     glob("Dataset progetto CV - Hand detection _ segmentation/det/*.txt", label_paths, false); // 30 labels
     glob("Dataset progetto CV - Hand detection _ segmentation/mask/*.png", mask_paths, false); // 30 masks
-    // string path = "val/images/CARDS_LIVINGROOM_B_T_frame_0504_jpg.rf.50fe772fe60ff8aec573157df5824a5a.jpg";
-    // string path = "val/images/2.jpg";
-    // frame = imread(path);
+
     // Load model
     Net net;
     net = readNet("best.onnx");
+
     // Process images and labels
     vector<Mat> detections;
     ifstream file;
     vector<Rect> labels;
     vector<Rect> boxes;
+    Mat frame_copy;
     Mat gT_mask;
 
     int x, y, w, h;
     for (int i = 0; i < image_paths.size(); i++)
     {
         labels.clear();
+        boxes.clear();
+
         frame = imread(image_paths[i]);
         file = ifstream(label_paths[i]);
-        while (file >> x >> y >> w >> h) // mickel <3
+        while (file >> x >> y >> w >> h)
             labels.push_back(Rect(x, y, w, h));
+
         detections = pre_process(frame, net);
-        Mat frame_copy; frame.copyTo(frame_copy); // deep copy of image
-        // Mat img = post_process(frame_copy, detections);
-        boxes.clear();
+
+        frame.copyTo(frame_copy); // deep copy of image
+
         Mat img = post_process(frame_copy, detections, labels, boxes);
         //imshow("Output", img);
         //waitKey(0);
+        String name = "Detection/" + std::to_string(i + 1) + ".jpg";
+        imwrite(name, img);
 
 
         // Segmentation
         gT_mask = imread(mask_paths[i], IMREAD_GRAYSCALE);
         Mat mask_img = Mat::zeros(frame.rows, frame.cols, CV_8U);
-
         Mat final_img = hand_segmentation(frame, boxes, mask_img);
 
-        std::string savingName = "Results/" + std::to_string(i) + ".jpg";
+        std::string savingName = "Segmentation/" + std::to_string(i + 1) + ".jpg";
         imwrite(savingName, final_img);
+
+        /*clock_t begin_time = clock();
+        Mat gtMask = imread(mask_paths[i]);
+        Mat predMask = hand_segmentation2(frame, boxes);
+        Mat saved_img;
+        frame.copyTo(saved_img, predMask);
+        cout << float(clock() - begin_time) / CLOCKS_PER_SEC << " SEG2" << endl;
+
+        std::string savingName2 = "Segmentation/2" + std::to_string(i + 1) + ".jpg";
+        imwrite(savingName, saved_img);*/
 
         // Caluclate pixel accuracy
         float frame_PA = pixel_accuracy(gT_mask, mask_img);
