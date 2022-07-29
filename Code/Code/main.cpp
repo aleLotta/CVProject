@@ -33,14 +33,6 @@ Scalar ORANGE = Scalar(255, 117, 24);
 
 vector<Scalar> colors = { BLUE, RED, GREEN, YELLOW, PURPLE, ORANGE };
 
-
-/*** Pre-Processing ***/
-
-vector<Mat> pre_process(const Mat& image, Net& net) {
-=======
-vector<Scalar> colors = { BLUE, RED, GREEN, YELLOW };
-
-
 /*** Pre-Processing ***/
 
 vector<Mat> pre_process(const Mat& image, Net& net) {
