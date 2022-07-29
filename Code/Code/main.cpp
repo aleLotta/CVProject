@@ -1,13 +1,14 @@
-/*** 1) Libraries and Namespaces ***/
+/*** Libraries and Namespaces ***/
 
 #include <opencv2/opencv.hpp>
 #include <fstream>
+#include <math.h>
 using namespace cv;
 using namespace std;
 using namespace cv::dnn;
 
 
-/*** 2) Global Parameters ***/
+/*** Global Parameters ***/
 
 const string CLASS_NAME = "hand";
 // costants
@@ -26,36 +27,16 @@ Scalar BLUE = Scalar(255, 178, 50);
 Scalar YELLOW = Scalar(0, 255, 255);
 Scalar RED = Scalar(0, 0, 255);
 Scalar GREEN = Scalar(0, 255, 0);
-
-vector<Scalar> colours = { BLUE, RED, GREEN, YELLOW };
-
-
-/*** 3) Draw Label ***/
-
-void draw_label(Mat& input_image, string label, int left, int top)
-{
-    // Display the label at the top of the bounding box
-    int baseLine;
-    Size label_size = getTextSize(label, FONT_FACE, FONT_SCALE, THICKNESS, &baseLine);
-    top = max(top, label_size.height);
-    // Top left corner
-    Point tlc = Point(left, top);
-    // Bottom right corner
-    Point brc = Point(left + label_size.width, top + label_size.height + baseLine);
-    // Draw white rectangle
-    rectangle(input_image, tlc, brc, BLACK, FILLED);
-    // Put the label on the black rectangle
-    putText(input_image, label, Point(left, top + label_size.height), FONT_FACE, FONT_SCALE, YELLOW, THICKNESS);
-}
+vector<Scalar> colors = { BLUE, RED, GREEN, YELLOW };
 
 
-/*** 4) Pre-Processing ***/
+/*** Pre-Processing ***/
 
-vector<Mat> pre_process(Mat& input_image, Net& net)
+vector<Mat> pre_process(const Mat& image, Net& net)
 {
     // Convert to blob
     Mat blob;
-    blobFromImage(input_image, blob, 1. / 255., Size(INPUT_WIDTH, INPUT_HEIGHT), Scalar(), true, false);
+    blobFromImage(image, blob, 1. / 255., Size(INPUT_WIDTH, INPUT_HEIGHT), Scalar(), true, false);
 
     net.setInput(blob);
 
@@ -67,9 +48,9 @@ vector<Mat> pre_process(Mat& input_image, Net& net)
 }
 
 
-/*** 5) Post-Processing ***/
+/*** Post-Processing ***/
 
-Mat post_process(Mat& input_image, const vector<Mat>& outputs, const vector<Rect>& gtBoxes, vector<Rect>& detBoxes)
+Mat post_process(Mat& image, const vector<Mat>& outputs, const vector<Rect>& gtBoxes, vector<Rect>& predBoxes)
 {
     // Only 1 class id (0: hand)
     Point class_id;
@@ -79,12 +60,12 @@ Mat post_process(Mat& input_image, const vector<Mat>& outputs, const vector<Rect
     vector<float> confidences;
     vector<Rect> boxes;
     // Resizing factor
-    float x_factor = input_image.cols / INPUT_WIDTH;
-    float y_factor = input_image.rows / INPUT_HEIGHT;
+    float x_factor = image.cols / INPUT_WIDTH;
+    float y_factor = image.rows / INPUT_HEIGHT;
     float* data = (float*)outputs[0].data;
     const int dimensions = 6;
 
-    /* A. Filter Good Detections */
+    /* Filter Good Detections */
 
     // 25200 for default size 640
     const int rows = 25200;
@@ -115,14 +96,11 @@ Mat post_process(Mat& input_image, const vector<Mat>& outputs, const vector<Rect
         data += dimensions;
     }
 
-    /* B. Remove Overlapping Boxes */
+    /* Remove Overlapping Boxes */
 
     // Perform Non-Maximum Suppression and draw predictions
     vector<int> indices;
     NMSBoxes(boxes, confidences, SCORE_THRESHOLD, NMS_THRESHOLD, indices);
-    // Draw ground truth bounding box
-    //for (int i = 0; i < gtBoxes.size(); i++)
-    //    rectangle(input_image, Point(gtBoxes[i].x, gtBoxes[i].y), Point(gtBoxes[i].x + gtBoxes[i].width, gtBoxes[i].y + gtBoxes[i].height), RED, 3 * THICKNESS);
     for (int i = 0; i < indices.size(); i++)
     {
         int idx = indices[i];
@@ -131,22 +109,16 @@ Mat post_process(Mat& input_image, const vector<Mat>& outputs, const vector<Rect
         int top = box.y;
         int width = box.width;
         int height = box.height;
-
         // Save detected Box
-        detBoxes.push_back(Rect(left, top, width, height));
+        predBoxes.push_back(Rect(left, top, width, height));
         // Draw bounding box
-        rectangle(input_image, Point(left, top), Point(left + width, top + height), BLUE, 2 * THICKNESS);
-        // Get the label for the class name and its confidence
-        string label = format("%.2f", confidences[idx]);
-        // label = CLASS_NAME + ":" + label;
-        // Draw class labels
-        draw_label(input_image, label, left, top);
+        rectangle(image, Point(left, top), Point(left + width, top + height), colors[i % colors.size()], 2 * THICKNESS);
     }
-    return input_image;
+    return image;
 }
 
 
-/*** 6) IoU Metric ***/
+/*** IoU Metric ***/
 
 float bboxes_iou(Rect gtBox, Rect predBox)
 {
@@ -165,11 +137,48 @@ float bboxes_iou(Rect gtBox, Rect predBox)
     return iou;
 }
 
+float iou_calc(const Mat& input_image, const vector<Rect>& gtBoxes, const vector<Rect>& predBoxes)
+{
+    int nMin = min(gtBoxes.size(), predBoxes.size());
+    int nMax = max(gtBoxes.size(), predBoxes.size());
+    int gtIndex = -1, predIndex = -1;
+    float tempIou, bestIou, finalIou = 0;
+    vector<int> predDone(predBoxes.size(), 0);
+    vector<int> gtDone(gtBoxes.size(), 0);
 
-/*** 7) Hand Segmentation ***/
+    for (int k = 0; k < nMin; k++)
+    {
+        bestIou = 0;
+        for (int i = 0; i < predBoxes.size(); i++)
+        {
+            if (predDone[i] != 1)
+            {
+                for (int j = 0; j < gtBoxes.size(); j++)
+                {
+                    if (gtDone[j] != 1)
+                    {
+                        tempIou = bboxes_iou(predBoxes[i], gtBoxes[j]);
+                        if (tempIou > bestIou)
+                        {
+                            bestIou = tempIou;
+                            predIndex = i;
+                            gtIndex = j;
+                        }
+                    }
+                }
+            }
+        }
+        predDone[predIndex] = 1;
+        gtDone[gtIndex] = 1;
+        finalIou += bestIou;
+    }
+    return finalIou / nMax;
+}
+
+
+/*** Hand Segmentation ***/
 
 Mat hand_segmentation(Mat& frame, vector<Rect> boxes, Mat& mask) {
-    /* SEGMENTATION */
     Mat final_img; frame.copyTo(final_img);
     Mat blur;
     //bilateralFilter(frame, blur, 9, 100, 100);
@@ -203,7 +212,7 @@ Mat hand_segmentation(Mat& frame, vector<Rect> boxes, Mat& mask) {
         cv::Mat foreground(frame.size(), CV_8UC3, cv::Scalar(0, 0, 0));
 
         // Apply a color to the mask
-        Mat temp(frame.rows, frame.cols, CV_8UC3, colours[t]);
+        Mat temp(frame.rows, frame.cols, CV_8UC3, colors[t]);
         temp.copyTo(foreground, result); // bg pixels not copied
 
         //imshow("Foreground.jpg", foreground);
@@ -221,7 +230,7 @@ Mat hand_segmentation(Mat& frame, vector<Rect> boxes, Mat& mask) {
 }
 
 
-/*** 8) Pixel Accuracy Metric ***/
+/*** Pixel Accuracy Metric ***/
 
 float pixel_accuracy(Mat gT, Mat det_img) {
 
@@ -243,7 +252,7 @@ float pixel_accuracy(Mat gT, Mat det_img) {
     return pA;
 }
 
-/*** -> Main Function ***/
+/*** -> Main Function <- ***/
 
 int main()
 {
@@ -257,8 +266,7 @@ int main()
     glob("Dataset progetto CV - Hand detection _ segmentation/mask/*.png", mask_paths, false); // 30 masks
 
     // Load model
-    Net net;
-    net = readNet("best.onnx");
+    Net net = readNet("Model5/last425m.onnx");
 
     // Process images and labels
     vector<Mat> detections;
@@ -267,8 +275,8 @@ int main()
     vector<Rect> boxes;
     Mat frame_copy;
     Mat gT_mask;
-
     int x, y, w, h;
+
     for (int i = 0; i < image_paths.size(); i++)
     {
         labels.clear();
@@ -286,8 +294,11 @@ int main()
         Mat img = post_process(frame_copy, detections, labels, boxes);
         //imshow("Output", img);
         //waitKey(0);
-        String name = "Detection/" + std::to_string(i + 1) + ".jpg";
+        String name = "Detection2/" + std::to_string(i + 1) + ".jpg";
         imwrite(name, img);
+
+
+        float iou = iou_calc(frame, labels, boxes);
 
 
         // Segmentation
@@ -295,7 +306,7 @@ int main()
         Mat mask_img = Mat::zeros(frame.rows, frame.cols, CV_8U);
         Mat final_img = hand_segmentation(frame, boxes, mask_img);
 
-        std::string savingName = "Segmentation/" + std::to_string(i + 1) + ".jpg";
+        std::string savingName = "Segmentation2/" + std::to_string(i + 1) + ".jpg";
         imwrite(savingName, final_img);
 
         /*clock_t begin_time = clock();
@@ -312,8 +323,9 @@ int main()
         float frame_PA = pixel_accuracy(gT_mask, mask_img);
 
         fstream pA_results;
-        pA_results.open("pixel_accuracy.txt", fstream::app);
+        pA_results.open("metrics2.txt", fstream::app);
         if (pA_results.is_open()) {
+            pA_results << "iou" + to_string(i) + "\n" + to_string(iou) + "\n";
             pA_results << "pa_mask" + to_string(i) + "\n" + to_string(frame_PA) + "\n\n";
             pA_results.close();
         }
