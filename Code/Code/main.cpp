@@ -100,7 +100,7 @@ Mat post_process(Mat& image, const vector<Mat>& outputs, const vector<Rect>& gtB
     // Perform Non-Maximum Suppression and draw predictions
     vector<int> indices;
     NMSBoxes(boxes, confidences, SCORE_THRESHOLD, NMS_THRESHOLD, indices);
-    
+
     for (int i = 0; i < indices.size(); i++) {
 
         int idx = indices[i];
@@ -122,19 +122,19 @@ Mat post_process(Mat& image, const vector<Mat>& outputs, const vector<Rect>& gtB
 /*** IoU Metric ***/
 
 float bboxes_iou(Rect gtBox, Rect predBox) {
-    
+
     // Coordinates for intersection rectangle
     int xA = max(gtBox.x, predBox.x);
     int yA = max(gtBox.y, predBox.y);
     int xB = min(gtBox.x + gtBox.width, predBox.x + predBox.width);
     int yB = min(gtBox.y + gtBox.height, predBox.y + predBox.height);
-    
+
     // Area of intersection rectangle
     float interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1);
-    
+
     // IoU as the intersection area of the two boxes divided by their union area
     float iou = interArea / float(gtBox.area() + predBox.area() - interArea);
-    
+
     return iou;
 }
 
@@ -149,14 +149,14 @@ float iou_calc(const Mat& input_image, const vector<Rect>& gtBoxes, const vector
 
     for (int k = 0; k < nMin; k++) {
         bestIou = 0;
-        
+
         for (int i = 0; i < predBoxes.size(); i++) {
             if (predDone[i] != 1) {
                 for (int j = 0; j < gtBoxes.size(); j++) {
                     if (gtDone[j] != 1) {
                         tempIou = bboxes_iou(predBoxes[i], gtBoxes[j]);
-                        
-                        if (tempIou > bestIou) {  
+
+                        if (tempIou > bestIou) {
                             bestIou = tempIou;
                             predIndex = i;
                             gtIndex = j;
@@ -178,8 +178,13 @@ float iou_calc(const Mat& input_image, const vector<Rect>& gtBoxes, const vector
 /*** Hand Segmentation ***/
 
 Mat hand_segmentation(Mat& frame, vector<Rect> boxes, Mat& mask) {
-    
+
     Mat final_img; frame.copyTo(final_img);
+
+    if (final_img.channels() == 1) {
+        cvtColor(final_img, final_img, COLOR_GRAY2BGR);
+    }
+
     Mat blur;
     //bilateralFilter(frame, blur, 9, 100, 100);
     //GaussianBlur(frame, blur, Size(9, 9), 0, 0);
@@ -196,6 +201,7 @@ Mat hand_segmentation(Mat& frame, vector<Rect> boxes, Mat& mask) {
         Mat result; // segmentation result (4 possible values)
         Mat bgModel, fgModel; // the models (internally used)    
 
+
         // GrabCut segmentation
         grabCut(frame,    // input image
             result,   // segmentation result
@@ -204,36 +210,26 @@ Mat hand_segmentation(Mat& frame, vector<Rect> boxes, Mat& mask) {
             1,        // number of iterations
             cv::GC_INIT_WITH_RECT);
 
+        // Generate output image
         cv::Mat foreground(frame.size(), CV_8UC3, cv::Scalar(0, 0, 0));
-        
+
         // Draw background (black) or hand (white) pixels on foreground image
         for (int i = 0; i < frame.rows; i++)
             for (int j = 0; j < frame.cols; j++)
                 if (result.at<uchar>(i, j) == 0 || result.at<uchar>(i, j) == 2) {
-                    foreground.at<Vec3b>(i,j) = Vec3b(0,0,0);
-                    result.at<uchar>(i,j) = 0;
+                    foreground.at<Vec3b>(i, j) = Vec3b(0, 0, 0);
+                    result.at<uchar>(i, j) = 0;
                 }
-                else {   
-                    foreground.at<Vec3b>(i,j)[0] = colors[t][0];
-                    foreground.at<Vec3b>(i,j)[1] = colors[t][1];
-                    foreground.at<Vec3b>(i,j)[2] = colors[t][2];
-                    result.at<uchar>(i,j) = 255;
+                else {
+                    foreground.at<Vec3b>(i, j)[0] = colors[t][0];
+                    foreground.at<Vec3b>(i, j)[1] = colors[t][1];
+                    foreground.at<Vec3b>(i, j)[2] = colors[t][2];
+                    result.at<uchar>(i, j) = 255;
                 }
-                
+
         // Computation for the final mask
         mask = mask + result;
 
-        // Generate output image
-        cv::Mat foreground(frame.size(), CV_8UC3, cv::Scalar(0, 0, 0));
-
-        // Apply a color to the mask
-        Mat temp(frame.rows, frame.cols, CV_8UC3, colors[t]);
-        temp.copyTo(foreground, result); // bg pixels not copied
-
-        //imshow("Foreground.jpg", foreground);
-        //waitKey();
-
-        //Mat final_img;
         // Merge the original image with the mask
         addWeighted(final_img, 1, foreground, 0.5, 0.0, final_img);
         imshow("Overlap", final_img);
@@ -281,7 +277,7 @@ int main() {
     glob("Dataset progetto CV - Hand detection _ segmentation/mask/*.png", mask_paths, false); // 30 masks
 
     // Load model
-    Net net = readNet("Model5/last425m.onnx");
+    Net net = readNet("../../../Model/yolov5m.onnx");
 
     // Process images and labels
     vector<Mat> detections;
@@ -291,7 +287,7 @@ int main() {
     Mat frame_copy;
     Mat gT_mask;
     int x, y, w, h;
-    
+
     for (int i = 0; i < image_paths.size(); i++) {
 
         labels.clear();
@@ -311,11 +307,8 @@ int main() {
         //waitKey(0);
         String name = "Detection2/" + std::to_string(i + 1) + ".jpg";
         imwrite(name, img);
-        
-        float iou = iou_calc(frame, labels, boxes);
 
         float iou = iou_calc(frame, labels, boxes);
-
 
         // Segmentation
         gT_mask = imread(mask_paths[i], IMREAD_GRAYSCALE);
@@ -335,9 +328,9 @@ int main() {
             pA_results << "iou" + to_string(i) + "\n" + to_string(iou) + "\n\n";
             pA_results << "pa_mask" + to_string(i) + "\n" + to_string(frame_PA) + "\n\n";
             pA_results.close();
-            
+
         }
     }
-    
+
     return 0;
 }
