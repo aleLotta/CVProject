@@ -3,7 +3,10 @@
 #include <opencv2/opencv.hpp>
 #include <fstream>
 #include <math.h>
+<<<<<<< HEAD
 
+=======
+>>>>>>> 3cecaab7fa4c3c2b23c4b4ebfdce1eac1397d012
 using namespace cv;
 using namespace std;
 using namespace cv::dnn;
@@ -28,6 +31,7 @@ Scalar BLUE = Scalar(255, 178, 50);
 Scalar YELLOW = Scalar(0, 255, 255);
 Scalar RED = Scalar(0, 0, 255);
 Scalar GREEN = Scalar(0, 255, 0);
+<<<<<<< HEAD
 Scalar PURPLE = Scalar(128, 0, 128);
 Scalar ORANGE = Scalar(255, 117, 24);
 
@@ -37,6 +41,15 @@ vector<Scalar> colors = { BLUE, RED, GREEN, YELLOW, PURPLE, ORANGE };
 /*** Pre-Processing ***/
 
 vector<Mat> pre_process(const Mat& image, Net& net) {
+=======
+vector<Scalar> colors = { BLUE, RED, GREEN, YELLOW };
+
+
+/*** Pre-Processing ***/
+
+vector<Mat> pre_process(const Mat& image, Net& net)
+{
+>>>>>>> 3cecaab7fa4c3c2b23c4b4ebfdce1eac1397d012
     // Convert to blob
     Mat blob;
     blobFromImage(image, blob, 1. / 255., Size(INPUT_WIDTH, INPUT_HEIGHT), Scalar(), true, false);
@@ -53,7 +66,12 @@ vector<Mat> pre_process(const Mat& image, Net& net) {
 
 /*** Post-Processing ***/
 
+<<<<<<< HEAD
 Mat post_process(Mat& image, const vector<Mat>& outputs, const vector<Rect>& gtBoxes, vector<Rect>& predBoxes) {
+=======
+Mat post_process(Mat& image, const vector<Mat>& outputs, const vector<Rect>& gtBoxes, vector<Rect>& predBoxes)
+{
+>>>>>>> 3cecaab7fa4c3c2b23c4b4ebfdce1eac1397d012
     // Only 1 class id (0: hand)
     Point class_id;
     class_id.x = 0;
@@ -101,21 +119,28 @@ Mat post_process(Mat& image, const vector<Mat>& outputs, const vector<Rect>& gtB
     // Perform Non-Maximum Suppression and draw predictions
     vector<int> indices;
     NMSBoxes(boxes, confidences, SCORE_THRESHOLD, NMS_THRESHOLD, indices);
+<<<<<<< HEAD
     
     for (int i = 0; i < indices.size(); i++) {
+=======
+    for (int i = 0; i < indices.size(); i++)
+    {
+>>>>>>> 3cecaab7fa4c3c2b23c4b4ebfdce1eac1397d012
         int idx = indices[i];
         Rect box = boxes[idx];
         int left = box.x;
         int top = box.y;
         int width = box.width;
         int height = box.height;
-
         // Save detected Box
         predBoxes.push_back(Rect(left, top, width, height));
         // Draw bounding box
         rectangle(image, Point(left, top), Point(left + width, top + height), colors[i % colors.size()], 2 * THICKNESS);
     }
+<<<<<<< HEAD
     
+=======
+>>>>>>> 3cecaab7fa4c3c2b23c4b4ebfdce1eac1397d012
     return image;
 }
 
@@ -139,8 +164,13 @@ float bboxes_iou(Rect gtBox, Rect predBox) {
     return iou;
 }
 
+<<<<<<< HEAD
 float iou_calc(const Mat& input_image, const vector<Rect>& gtBoxes, const vector<Rect>& predBoxes) {
   
+=======
+float iou_calc(const Mat& input_image, const vector<Rect>& gtBoxes, const vector<Rect>& predBoxes)
+{
+>>>>>>> 3cecaab7fa4c3c2b23c4b4ebfdce1eac1397d012
     int nMin = min(gtBoxes.size(), predBoxes.size());
     int nMax = max(gtBoxes.size(), predBoxes.size());
     int gtIndex = -1, predIndex = -1;
@@ -148,6 +178,7 @@ float iou_calc(const Mat& input_image, const vector<Rect>& gtBoxes, const vector
     vector<int> predDone(predBoxes.size(), 0);
     vector<int> gtDone(gtBoxes.size(), 0);
 
+<<<<<<< HEAD
     for (int k = 0; k < nMin; k++) {
         bestIou = 0;
         
@@ -158,6 +189,22 @@ float iou_calc(const Mat& input_image, const vector<Rect>& gtBoxes, const vector
                         tempIou = bboxes_iou(predBoxes[i], gtBoxes[j]);
                         
                         if (tempIou > bestIou) {  
+=======
+    for (int k = 0; k < nMin; k++)
+    {
+        bestIou = 0;
+        for (int i = 0; i < predBoxes.size(); i++)
+        {
+            if (predDone[i] != 1)
+            {
+                for (int j = 0; j < gtBoxes.size(); j++)
+                {
+                    if (gtDone[j] != 1)
+                    {
+                        tempIou = bboxes_iou(predBoxes[i], gtBoxes[j]);
+                        if (tempIou > bestIou)
+                        {
+>>>>>>> 3cecaab7fa4c3c2b23c4b4ebfdce1eac1397d012
                             bestIou = tempIou;
                             predIndex = i;
                             gtIndex = j;
@@ -166,12 +213,18 @@ float iou_calc(const Mat& input_image, const vector<Rect>& gtBoxes, const vector
                 }
             }
         }
+<<<<<<< HEAD
         
+=======
+>>>>>>> 3cecaab7fa4c3c2b23c4b4ebfdce1eac1397d012
         predDone[predIndex] = 1;
         gtDone[gtIndex] = 1;
         finalIou += bestIou;
     }
+<<<<<<< HEAD
     
+=======
+>>>>>>> 3cecaab7fa4c3c2b23c4b4ebfdce1eac1397d012
     return finalIou / nMax;
 }
 
@@ -179,7 +232,10 @@ float iou_calc(const Mat& input_image, const vector<Rect>& gtBoxes, const vector
 /*** Hand Segmentation ***/
 
 Mat hand_segmentation(Mat& frame, vector<Rect> boxes, Mat& mask) {
+<<<<<<< HEAD
     
+=======
+>>>>>>> 3cecaab7fa4c3c2b23c4b4ebfdce1eac1397d012
     Mat final_img; frame.copyTo(final_img);
     Mat blur;
     //bilateralFilter(frame, blur, 9, 100, 100);
@@ -226,7 +282,21 @@ Mat hand_segmentation(Mat& frame, vector<Rect> boxes, Mat& mask) {
                 
         // Computation for the final mask
         mask = mask + result;
+<<<<<<< HEAD
         
+=======
+        // Generate output image
+        cv::Mat foreground(frame.size(), CV_8UC3, cv::Scalar(0, 0, 0));
+
+        // Apply a color to the mask
+        Mat temp(frame.rows, frame.cols, CV_8UC3, colors[t]);
+        temp.copyTo(foreground, result); // bg pixels not copied
+
+        //imshow("Foreground.jpg", foreground);
+        //waitKey();
+
+        //Mat final_img;
+>>>>>>> 3cecaab7fa4c3c2b23c4b4ebfdce1eac1397d012
         // Merge the original image with the mask
         addWeighted(final_img, 1, foreground, 0.5, 0.0, final_img);
         imshow("Overlap", final_img);
@@ -260,7 +330,11 @@ float pixel_accuracy(Mat gT, Mat det_img) {
     return pA;
 }
 
+<<<<<<< HEAD
 /*** -> Main Function <-  ***/
+=======
+/*** -> Main Function <- ***/
+>>>>>>> 3cecaab7fa4c3c2b23c4b4ebfdce1eac1397d012
 
 int main() {
     // Load images, labels and masks
@@ -273,7 +347,11 @@ int main() {
     glob("Dataset progetto CV - Hand detection _ segmentation/mask/*.png", mask_paths, false); // 30 masks
 
     // Load model
+<<<<<<< HEAD
     Net net = readNet("../../../Model/yolov5m.onnx");
+=======
+    Net net = readNet("Model5/last425m.onnx");
+>>>>>>> 3cecaab7fa4c3c2b23c4b4ebfdce1eac1397d012
 
     // Process images and labels
     vector<Mat> detections;
@@ -283,8 +361,14 @@ int main() {
     Mat frame_copy;
     Mat gT_mask;
     int x, y, w, h;
+<<<<<<< HEAD
     
     for (int i = 0; i < image_paths.size(); i++) {
+=======
+
+    for (int i = 0; i < image_paths.size(); i++)
+    {
+>>>>>>> 3cecaab7fa4c3c2b23c4b4ebfdce1eac1397d012
         labels.clear();
         boxes.clear();
 
@@ -300,26 +384,35 @@ int main() {
         Mat img = post_process(frame_copy, detections, labels, boxes);
         //imshow("Output", img);
         //waitKey(0);
-        String name = "Detection/" + std::to_string(i + 1) + ".jpg";
+        String name = "Detection2/" + std::to_string(i + 1) + ".jpg";
         imwrite(name, img);
         
         float iou = iou_calc(frame, labels, boxes);
+
+        float iou = iou_calc(frame, labels, boxes);
+
 
         // Segmentation
         gT_mask = imread(mask_paths[i], IMREAD_GRAYSCALE);
         Mat mask_img = Mat::zeros(frame.rows, frame.cols, CV_8U);
         Mat final_img = hand_segmentation(frame, boxes, mask_img);
 
-        std::string savingName = "Segmentation/" + std::to_string(i + 1) + ".jpg";
+        std::string savingName = "Segmentation2/" + std::to_string(i + 1) + ".jpg";
         imwrite(savingName, final_img);
 
         // Caluclate pixel accuracy
         float frame_PA = pixel_accuracy(gT_mask, mask_img);
 
         fstream pA_results;
+<<<<<<< HEAD
         pA_results.open("metrics_results.txt", fstream::app);
         if (pA_results.is_open()) {
             pA_results << "iou" + to_string(i) + "\n" + to_string(iou) + "\n\n";
+=======
+        pA_results.open("metrics2.txt", fstream::app);
+        if (pA_results.is_open()) {
+            pA_results << "iou" + to_string(i) + "\n" + to_string(iou) + "\n";
+>>>>>>> 3cecaab7fa4c3c2b23c4b4ebfdce1eac1397d012
             pA_results << "pa_mask" + to_string(i) + "\n" + to_string(frame_PA) + "\n\n";
             pA_results.close();
             
