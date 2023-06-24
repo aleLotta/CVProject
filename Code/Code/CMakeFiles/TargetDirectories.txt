@@ -1,3 +1,0 @@
-/home/local/lottale17526/Desktop/CVProject/Code/Code/CMakeFiles/rebuild_cache.dir
-/home/local/lottale17526/Desktop/CVProject/Code/Code/CMakeFiles/edit_cache.dir
-/home/local/lottale17526/Desktop/CVProject/Code/Code/CMakeFiles/main.dir
