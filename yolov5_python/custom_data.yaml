@@ -1,0 +1,4 @@
+train: /content/cv-dataset/train
+val: /content/cv-dataset/val
+nc: 1
+names: ['hand']
